@@ -9,12 +9,12 @@
     "experimentalDecorators": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "sourceMap": true,
     "outDir": "./dist",
     "types": ["node"],
     "incremental": true,
     "strict": true,
     "alwaysStrict": true,
+    "inlineSourceMap": true,
     "strictPropertyInitialization": false
   },
   "include": ["src/**/*.ts"]

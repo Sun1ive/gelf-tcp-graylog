@@ -20,10 +20,9 @@ export const enum Level {
 }
 
 type IDefaultOptions = {
-  host: string;
-  tag: string;
-  version: '1.1';
-  level: Level;
+  host?: string;
+  tag?: string;
+  level?: Level;
 };
 
 type IGelfOptions = {
@@ -32,14 +31,17 @@ type IGelfOptions = {
   defaults?: IDefaultOptions;
 };
 
-type IGelfMessage = {
-  short_message: string;
-  full_message?: string;
+export type IGelfMeta = {
   level?: Level;
   host?: string;
   tag?: string;
   line?: number;
   facility?: string;
+};
+
+export type IGelfMessage = {
+  short_message: string;
+  full_message?: string;
 };
 
 export class TCPGelf extends EventEmitter {
@@ -81,6 +83,7 @@ export class TCPGelf extends EventEmitter {
     };
 
     this.client.on('connect', () => {
+      log('Connected');
       if (this.timeout) {
         clearTimeout(this.timeout);
         this.timeout = undefined;
@@ -114,6 +117,7 @@ export class TCPGelf extends EventEmitter {
   }
 
   public dispose(): void {
+    log('Disconnecting');
     if (this.timeout) {
       clearTimeout(this.timeout);
       this.timeout = undefined;
@@ -123,13 +127,13 @@ export class TCPGelf extends EventEmitter {
     this.client.destroy();
   }
 
-  public send(message: IGelfMessage): Promise<void> {
+  public send(message: IGelfMessage, meta?: IGelfMeta): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.isConnected) {
-        reject(new Error('Socket is not connected'));
+        return resolve();
       }
 
-      const msg = JSON.stringify({ ...this.defaults, ...message });
+      const msg = JSON.stringify({ ...this.defaults, ...message, ...meta });
       const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
 
       this.client.write(packet, (err) => {

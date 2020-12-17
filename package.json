@@ -1,5 +1,5 @@
 {
-  "name": "gelf-tcp-graylog",
+  "name": "@temabit/gelf-tcp-graylog",
   "version": "1.0.2",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
