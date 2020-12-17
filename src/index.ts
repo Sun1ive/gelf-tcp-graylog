@@ -3,8 +3,6 @@ import debug from 'debug';
 import { hostname } from 'os';
 import { EventEmitter } from 'events';
 import { clearTimeout } from 'timers';
-import { start } from 'repl';
-import { getMaxListeners } from 'process';
 
 const log = debug('TCP_GELF');
 
