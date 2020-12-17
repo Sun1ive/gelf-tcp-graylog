@@ -1,10 +1,10 @@
 {
   "name": "gelf-tcp-graylog",
-  "version": "1.0.0",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "typings": "dist/index.d.ts",
-  "main": "index.js",
+  "version": "1.0.2",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typings": "./dist/index.d.ts",
+  "main": "./dist/index.js",
   "scripts": {
     "watch": "rimraf dist && tsc --watch",
     "build": "rimraf dist && tsc",
@@ -14,9 +14,13 @@
     "type": "git",
     "url": "git+https://github.com/Sun1ive/gelf-tcp-graylog.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "GELF",
+    "TCP",
+    "GRAYLOG"
+  ],
+  "author": "s.ustinov",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Sun1ive/gelf-tcp-graylog/issues"
   },
