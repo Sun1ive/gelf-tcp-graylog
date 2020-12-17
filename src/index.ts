@@ -3,6 +3,8 @@ import debug from 'debug';
 import { hostname } from 'os';
 import { EventEmitter } from 'events';
 import { clearTimeout } from 'timers';
+import { start } from 'repl';
+import { getMaxListeners } from 'process';
 
 const log = debug('TCP_GELF');
 
@@ -23,7 +25,7 @@ type IDefaultOptions = {
   host: string;
   tag: string;
   version: '1.1';
-  level: number;
+  level: Level;
 };
 
 type IGelfOptions = {
@@ -33,16 +35,16 @@ type IGelfOptions = {
 };
 
 type IGelfMessage = {
-  short_message?: string;
+  short_message: string;
   full_message?: string;
-  level?: number;
+  level?: Level;
   host?: string;
   tag?: string;
   line?: number;
   facility?: string;
 };
 
-export class TCPGelf {
+export class TCPGelf extends EventEmitter {
   private client: net.Socket;
   private timeout?: NodeJS.Timeout;
   private retries = 0;
@@ -56,7 +58,7 @@ export class TCPGelf {
     level: Level.INFO,
   };
 
-  private reconnect = () => {
+  private reconnect = (): void => {
     const { host, port } = this.options;
     this.retries = this.retries += 1;
 
@@ -72,6 +74,7 @@ export class TCPGelf {
   };
 
   public constructor(private readonly options: IGelfOptions) {
+    super();
     const { port, host, defaults } = this.options;
     this.client = new net.Socket();
     this.defaults = {
@@ -99,6 +102,7 @@ export class TCPGelf {
 
     this.client.on('error', (err) => {
       log(err);
+      this.emit('error', err);
 
       this.client.end();
       this.client.destroy();
@@ -121,7 +125,7 @@ export class TCPGelf {
     this.client.destroy();
   }
 
-  public async send(message: IGelfMessage): Promise<void> {
+  public send(message: IGelfMessage): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.isConnected) {
         reject(new Error('Socket is not connected'));
@@ -140,26 +144,3 @@ export class TCPGelf {
     });
   }
 }
-
-async function start() {
-  const client = new TCPGelf({
-    host: '0.0.0.0',
-    port: 12211,
-  });
-
-  setTimeout(() => {
-    client
-      .send({
-        short_message: 'A short message that helps you identify what is going on',
-        full_message: 'Backtrace here and more stuff',
-      })
-      .then(log, log);
-  }, 1000);
-
-  process.on('SIGINT', (sig) => {
-    console.log('process exit %s', sig);
-    client.dispose();
-  });
-}
-
-start().catch(console.error);
