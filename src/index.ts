@@ -76,7 +76,6 @@ export class TCPGelf extends EventEmitter {
     });
 
     this.client.on('error', (err) => {
-      log(err);
       this.emit('error', err);
 
       this.q.stop();
@@ -110,8 +109,6 @@ export class TCPGelf extends EventEmitter {
         const msg = JSON.stringify({ ...this.defaults, ...message, ...meta });
         const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
 
-        log('CALLED %d', Date.now());
-
         this.client.write(packet, (err) => {
           process.nextTick(() => {
             if (err) {
@@ -124,19 +121,4 @@ export class TCPGelf extends EventEmitter {
       },
     });
   }
-}
-
-if (require.main === module) {
-  const host = 'graylog.test.fozzy.lan';
-  const port = 12203;
-  const gelf = new TCPGelf({ host, port });
-  gelf.on('error', console.log);
-
-  gelf.send({ full_message: 'some random full message', short_message: 'short message' });
-
-  gelf.send({ full_message: 'testing', short_message: 'tesing message' });
-
-  setTimeout(() => {
-    gelf.send({ full_message: 'SOMETHING GOOD', short_message: 'SUPER TESTING MESSAGE' });
-  }, 2000);
 }
