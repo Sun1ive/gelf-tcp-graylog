@@ -40,7 +40,7 @@ export class Queue extends EventEmitter {
 
   public constructor() {
     super();
-    this.on(EVENTS.DRAIN, () => console.log('DRAIN'));
+    this.on(EVENTS.DRAIN, () => log('DRAIN'));
     this.on(EVENTS.NEXT, this.process);
   }
 

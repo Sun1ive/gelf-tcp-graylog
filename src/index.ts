@@ -62,7 +62,7 @@ export class TCPGelf extends EventEmitter {
     });
 
     this.client.on('ready', () => {
-      log('ready?');
+      log('ready');
       this.q.start();
     });
 
@@ -88,6 +88,10 @@ export class TCPGelf extends EventEmitter {
       }
     });
 
+    this.client.on('drain', () => {
+      log('Socket drain');
+    });
+
     this.client.connect(port, host);
   }
 
@@ -110,13 +114,12 @@ export class TCPGelf extends EventEmitter {
         const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
 
         this.client.write(packet, (err) => {
-          process.nextTick(() => {
-            if (err) {
-              next(err);
-            } else {
-              next(null);
-            }
-          });
+          log(this.client.bufferSize);
+          if (err) {
+            next(err);
+          } else {
+            next(null);
+          }
         });
       },
     });

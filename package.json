@@ -8,7 +8,8 @@
   "scripts": {
     "watch": "rimraf dist && tsc --watch",
     "build": "rimraf dist && tsc",
-    "dev": "DEBUG=TCP* nodemon -w dist/index.js dist/index"
+    "dev": "DEBUG=TCP* nodemon -w dist/index.js dist/index",
+    "start": "DEBUG=TCP* nodemon test.js"
   },
   "repository": {
     "type": "git",
