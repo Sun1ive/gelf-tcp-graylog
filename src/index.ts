@@ -3,52 +3,19 @@ import debug from 'debug';
 import { hostname } from 'os';
 import { EventEmitter } from 'events';
 import { clearTimeout } from 'timers';
+import { IGelfOptions, IGelfMessage, IGelfMeta, Level } from './interfaces/gelf.interface';
+import { Queue } from './queue';
 
 const log = debug('TCP_GELF');
 
 const TIMEOUT = 5000;
-
-export const enum Level {
-  EMERGENCY,
-  ALERT,
-  CRITICAL,
-  ERROR,
-  WARNING,
-  NOTICE,
-  INFO,
-  DEBUG,
-}
-
-type IDefaultOptions = {
-  host?: string;
-  tag?: string;
-  level?: Level;
-};
-
-type IGelfOptions = {
-  port: number;
-  host: string;
-  defaults?: IDefaultOptions;
-};
-
-export type IGelfMeta = {
-  level?: Level;
-  host?: string;
-  tag?: string;
-  line?: number;
-  facility?: string;
-};
-
-export type IGelfMessage = {
-  short_message: string;
-  full_message?: string;
-};
 
 export class TCPGelf extends EventEmitter {
   private client: net.Socket;
   private timeout?: NodeJS.Timeout;
   private retries = 0;
   private isConnected = false;
+  private q = new Queue();
 
   private defaults = {
     host: hostname(),
@@ -76,11 +43,15 @@ export class TCPGelf extends EventEmitter {
   public constructor(private readonly options: IGelfOptions) {
     super();
     const { port, host, defaults } = this.options;
-    this.client = new net.Socket();
     this.defaults = {
       ...this.defaults,
       ...defaults,
     };
+
+    this.client = new net.Socket();
+    this.client.on('data', (chunk) => {
+      log(chunk);
+    });
 
     this.client.on('connect', () => {
       log('Connected');
@@ -88,8 +59,11 @@ export class TCPGelf extends EventEmitter {
         clearTimeout(this.timeout);
         this.timeout = undefined;
       }
+    });
 
-      this.isConnected = true;
+    this.client.on('ready', () => {
+      log('ready?');
+      this.q.start();
     });
 
     this.client.on('close', (hadError) => {
@@ -105,8 +79,10 @@ export class TCPGelf extends EventEmitter {
       log(err);
       this.emit('error', err);
 
+      this.q.stop();
       this.client.end();
       this.client.destroy();
+      this.isConnected = false;
 
       if (!this.timeout) {
         this.reconnect();
@@ -123,26 +99,44 @@ export class TCPGelf extends EventEmitter {
       this.timeout = undefined;
     }
 
+    this.q.clear();
     this.client.end();
     this.client.destroy();
   }
 
-  public send(message: IGelfMessage, meta?: IGelfMeta): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!this.isConnected) {
-        return resolve();
-      }
+  public send(message: IGelfMessage, meta?: IGelfMeta): void {
+    this.q.push({
+      job: (next) => {
+        const msg = JSON.stringify({ ...this.defaults, ...message, ...meta });
+        const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
 
-      const msg = JSON.stringify({ ...this.defaults, ...message, ...meta });
-      const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
+        log('CALLED %d', Date.now());
 
-      this.client.write(packet, (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
+        this.client.write(packet, (err) => {
+          process.nextTick(() => {
+            if (err) {
+              next(err);
+            } else {
+              next(null);
+            }
+          });
+        });
+      },
     });
   }
+}
+
+if (require.main === module) {
+  const host = 'graylog.test.fozzy.lan';
+  const port = 12203;
+  const gelf = new TCPGelf({ host, port });
+  gelf.on('error', console.log);
+
+  gelf.send({ full_message: 'some random full message', short_message: 'short message' });
+
+  gelf.send({ full_message: 'testing', short_message: 'tesing message' });
+
+  setTimeout(() => {
+    gelf.send({ full_message: 'SOMETHING GOOD', short_message: 'SUPER TESTING MESSAGE' });
+  }, 2000);
 }
