@@ -63,7 +63,6 @@ export class TCPGelf extends EventEmitter {
 
     this.client.on('ready', () => {
       log('ready');
-      this.q.start();
     });
 
     this.client.on('close', (hadError) => {
@@ -78,7 +77,6 @@ export class TCPGelf extends EventEmitter {
     this.client.on('error', (err) => {
       this.emit('error', err);
 
-      this.q.stop();
       this.client.end();
       this.client.destroy();
       this.isConnected = false;
@@ -102,26 +100,23 @@ export class TCPGelf extends EventEmitter {
       this.timeout = undefined;
     }
 
-    this.q.clear();
     this.client.end();
     this.client.destroy();
   }
 
-  public send(message: IGelfMessage, meta?: IGelfMeta): void {
-    this.q.push({
-      job: (next) => {
-        const msg = JSON.stringify({ ...this.defaults, ...message, ...meta });
-        const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
+  public send(message: IGelfMessage, meta?: IGelfMeta) {
+    const msg = JSON.stringify({ ...this.defaults, ...message, ...meta });
+    const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
 
-        this.client.write(packet, (err) => {
-          log(this.client.bufferSize);
-          if (err) {
-            next(err);
-          } else {
-            next(null);
-          }
-        });
-      },
+    return new Promise((res, rej) => {
+      this.client.write(packet, (err) => {
+        log(this.client.bufferSize);
+        if (err) {
+          rej(err);
+        } else {
+          res(undefined);
+        }
+      });
     });
   }
 }
