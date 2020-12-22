@@ -1,10 +1,10 @@
 import net from 'net';
+import { queue, QueueObject } from 'async';
 import debug from 'debug';
 import { hostname } from 'os';
 import { EventEmitter } from 'events';
 import { clearTimeout } from 'timers';
 import { IGelfOptions, IGelfMessage, IGelfMeta, Level } from './interfaces/gelf.interface';
-import { Queue } from './queue';
 
 const log = debug('TCP_GELF');
 
@@ -14,8 +14,13 @@ export class TCPGelf extends EventEmitter {
   private client: net.Socket;
   private timeout?: NodeJS.Timeout;
   private retries = 0;
-  private isConnected = false;
-  private q = new Queue();
+
+  private q: QueueObject<() => Promise<void>> = queue((job, callback) => {
+    job().then(
+      () => callback(),
+      (err) => callback(err),
+    );
+  }, 1);
 
   private defaults = {
     host: hostname(),
@@ -47,6 +52,9 @@ export class TCPGelf extends EventEmitter {
       ...this.defaults,
       ...defaults,
     };
+    this.q.drain(() => {
+      log('DRAIN Q', this.q.idle());
+    });
 
     this.client = new net.Socket();
     this.client.on('data', (chunk) => {
@@ -63,11 +71,18 @@ export class TCPGelf extends EventEmitter {
 
     this.client.on('ready', () => {
       log('ready');
+      if (this.q.paused) {
+        this.q.resume();
+      }
     });
 
     this.client.on('close', (hadError) => {
       if (hadError) {
         log('onClose had error', hadError);
+        if (!this.q.paused) {
+          this.q.pause();
+        }
+
         if (!this.timeout) {
           this.reconnect();
         }
@@ -76,10 +91,12 @@ export class TCPGelf extends EventEmitter {
 
     this.client.on('error', (err) => {
       this.emit('error', err);
+      if (!this.q.paused) {
+        this.q.pause();
+      }
 
       this.client.end();
       this.client.destroy();
-      this.isConnected = false;
 
       if (!this.timeout) {
         this.reconnect();
@@ -93,12 +110,14 @@ export class TCPGelf extends EventEmitter {
     this.client.connect(port, host);
   }
 
-  public dispose(): void {
+  public async dispose(): Promise<void> {
     log('Disconnecting');
     if (this.timeout) {
       clearTimeout(this.timeout);
       this.timeout = undefined;
     }
+
+    await this.q.drain();
 
     this.client.end();
     this.client.destroy();
@@ -108,15 +127,18 @@ export class TCPGelf extends EventEmitter {
     const msg = JSON.stringify({ ...this.defaults, ...message, ...meta });
     const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
 
-    return new Promise((res, rej) => {
-      this.client.write(packet, (err) => {
-        log(this.client.bufferSize);
-        if (err) {
-          rej(err);
-        } else {
-          res(undefined);
-        }
-      });
-    });
+    this.q.push(
+      () =>
+        new Promise((res, rej) => {
+          this.client.write(packet, (err) => {
+            log(this.client.bufferSize);
+            if (err) {
+              rej(err);
+            } else {
+              res(undefined);
+            }
+          });
+        }),
+    );
   }
 }
