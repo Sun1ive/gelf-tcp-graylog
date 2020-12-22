@@ -1,1 +1,7 @@
 node_modules
+test.js
+.eslintrc.js
+.eslintignore
+.prettierrc
+tsconfig*.json
+src
