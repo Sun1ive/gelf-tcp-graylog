@@ -91,10 +91,10 @@ export class TCPGelf extends EventEmitter {
 
     this.client.on('error', (err) => {
       this.emit('error', err);
+
       if (!this.q.paused) {
         this.q.pause();
       }
-
       this.client.end();
       this.client.destroy();
 
@@ -127,11 +127,10 @@ export class TCPGelf extends EventEmitter {
     const msg = JSON.stringify({ ...this.defaults, ...message, ...meta });
     const packet = Buffer.concat([Buffer.from(msg), Buffer.from('\0', 'ascii')]);
 
-    this.q.push(
+    return this.q.push(
       () =>
         new Promise((res, rej) => {
           this.client.write(packet, (err) => {
-            log(this.client.bufferSize);
             if (err) {
               rej(err);
             } else {

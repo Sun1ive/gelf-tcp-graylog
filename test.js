@@ -13,10 +13,13 @@ function start() {
       clearInterval(i);
     }
 
-    socket.send({
-      short_message: Math.random().toString(),
-      full_message: Math.cos(123),
-    });
+    socket
+      .send({
+        short_message: Math.random().toString(),
+        full_message: Math.cos(123),
+      })
+      .then((val) => console.log('then val ', val));
+
     c++;
   }, 16);
 }
