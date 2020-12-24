@@ -14,6 +14,7 @@ export class TCPGelf extends EventEmitter {
   private client: net.Socket;
   private timeout?: NodeJS.Timeout;
   private retries = 0;
+  private terminating = false;
 
   private q: QueueObject<() => Promise<void>> = queue((job, callback) => {
     job().then(
@@ -31,11 +32,11 @@ export class TCPGelf extends EventEmitter {
   };
 
   private reconnect = (): void => {
+    log('Reconnect attempt %d', this.retries);
     const { host, port } = this.options;
     this.retries = this.retries += 1;
 
     this.timeout = setTimeout(() => {
-      log('Reconnect attempt %d', this.retries);
       if (this.timeout) {
         clearTimeout(this.timeout);
         this.timeout = undefined;
@@ -83,7 +84,7 @@ export class TCPGelf extends EventEmitter {
           this.q.pause();
         }
 
-        if (!this.timeout) {
+        if (!this.timeout && !this.terminating) {
           this.reconnect();
         }
       }
@@ -95,10 +96,11 @@ export class TCPGelf extends EventEmitter {
       if (!this.q.paused) {
         this.q.pause();
       }
+
       this.client.end();
       this.client.destroy();
 
-      if (!this.timeout) {
+      if (!this.timeout && !this.terminating) {
         this.reconnect();
       }
     });
@@ -106,21 +108,29 @@ export class TCPGelf extends EventEmitter {
     this.client.on('drain', () => {
       log('Socket drain');
     });
+    this.client.on('end', () => {
+      log('End');
+    });
 
     this.client.connect(port, host);
   }
 
   public async dispose(): Promise<void> {
+    this.terminating = true;
     log('Disconnecting');
     if (this.timeout) {
       clearTimeout(this.timeout);
       this.timeout = undefined;
     }
 
-    await this.q.drain();
-
+    this.q.kill();
     this.client.end();
     this.client.destroy();
+
+    log({
+      Disconnected: this.client.destroyed,
+      queueLength: this.q.length(),
+    });
   }
 
   public send(message: IGelfMessage, meta?: IGelfMeta) {
